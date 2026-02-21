@@ -8,9 +8,11 @@
 - HTML5 / CSS3
 
 ## Features Implemented
-- Project structure setup
-- Database schema with relationships
-- Basic configuration setup
+- Authentication (Login / Logout)
+- Session-based access control
+- Role-based authorization (Admin / User)
+- Middleware protection
+- Database schema with relational tables
 
 ## Setup Instructions
 1. Install XAMPP
@@ -21,11 +23,13 @@
    worknest_db
 5. Import:
    database/schema.sql
-6. Open in browser:
-   http://localhost/worknest-erp
+6. Open:
+   http://localhost/worknest-erp/src/auth/login.php
 
 ## Test Credentials
-(To be added after authentication)
+Admin:
+Email: admin@worknest.com
+Password: admin123
 
 ## API Endpoints
 (To be implemented)
@@ -34,4 +38,4 @@
 Project is under development.
 
 ## Screenshots
-(To be added later)
+(To be added after UI implementation)
