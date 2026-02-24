@@ -1,11 +1,7 @@
 <?php
 // Start session
 session_start();
-
-// Unset all session variables
-$_SESSION = array();
-
-// Destroy session
+session_unset();
 session_destroy();
 
 // Prevent caching

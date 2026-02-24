@@ -1,11 +1,11 @@
 <?php
-require_once "../../middleware/admin.php";
-require_once "../../config/database.php";
+
+require_once dirname(__DIR__, 3) . "/middleware/admin.php";
+require_once dirname(__DIR__, 3) . "/config/database.php";
 
 $db = new Database();
 $conn = $db->connect();
 
-/* ================= SEARCH + FILTER + PAGINATION ================= */
 
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $department = isset($_GET['department']) ? trim($_GET['department']) : '';
@@ -29,7 +29,7 @@ $query = "SELECT
 $params = [];
 $types = "";
 
-/* Search */
+// Search 
 if (!empty($search)) {
     $query .= " AND (users.name LIKE ? OR users.email LIKE ?)";
     $searchTerm = "%$search%";
@@ -38,14 +38,14 @@ if (!empty($search)) {
     $types .= "ss";
 }
 
-/* Filter */
+// Filter
 if (!empty($department)) {
     $query .= " AND employees.department = ?";
     $params[] = $department;
     $types .= "s";
 }
 
-/* Count total rows */
+// Count total rows
 $countQuery = "SELECT COUNT(*) as total
                FROM employees
                JOIN users ON employees.user_id = users.id
@@ -69,7 +69,7 @@ $countResult = $countStmt->get_result();
 $totalRows = $countResult->fetch_assoc()['total'];
 $totalPages = ceil($totalRows / $limit);
 
-/* Add pagination */
+// Add pagination
 $query .= " ORDER BY employees.id ASC LIMIT ? OFFSET ?";
 $params[] = $limit;
 $params[] = $offset;
@@ -92,7 +92,7 @@ $result = $stmt->get_result();
 
 <div class="container mt-4">
 
-<!-- SUCCESS ALERTS -->
+
 <?php if(isset($_GET['updated'])): ?>
 <div class="alert alert-success" id="alertBox">Employee updated successfully!</div>
 <?php endif; ?>
@@ -110,7 +110,7 @@ setTimeout(function(){
 
 <h2 class="mb-3">Employee Management</h2>
 
-<!-- SEARCH + FILTER -->
+
 <form method="GET" class="row g-2 mb-3">
     <div class="col-md-4">
         <input type="text" name="search" class="form-control"
@@ -200,7 +200,6 @@ Delete
 </tbody>
 </table>
 
-<!-- PAGINATION -->
 <?php if($totalPages > 1): ?>
 <nav>
 <ul class="pagination justify-content-center">
@@ -220,7 +219,7 @@ $url="?".http_build_query($params);
 
 </div>
 
-<!-- ADD MODAL -->
+
 <div class="modal fade" id="addModal">
 <div class="modal-dialog">
 <div class="modal-content">
@@ -244,7 +243,7 @@ $url="?".http_build_query($params);
 </div>
 </div>
 
-<!-- DELETE MODAL -->
+
 <div class="modal fade" id="deleteModal">
 <div class="modal-dialog">
 <div class="modal-content">

@@ -1,15 +1,15 @@
 <?php
-require_once "../../middleware/admin.php";
-require_once "../../config/database.php";
 
+require_once dirname(__DIR__, 3) . "/middleware/admin.php";
+require_once dirname(__DIR__, 3) . "/config/database.php";
 $db = new Database();
 $conn = $db->connect();
 
-/* SEARCH + FILTER */
+
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $status = isset($_GET['status']) ? trim($_GET['status']) : '';
 
-/* PAGINATION */
+
 $limit = 5;
 $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
 if ($page < 1) $page = 1;
@@ -23,21 +23,19 @@ $query = "SELECT projects.*, users.name AS created_by_name
 $params = [];
 $types = "";
 
-/* Search */
+
 if (!empty($search)) {
     $query .= " AND projects.name LIKE ?";
     $params[] = "%$search%";
     $types .= "s";
 }
 
-/* Status Filter */
 if (!empty($status)) {
     $query .= " AND projects.status = ?";
     $params[] = $status;
     $types .= "s";
 }
 
-/* Count total rows */
 $countQuery = str_replace(
     "SELECT projects.*, users.name AS created_by_name",
     "SELECT COUNT(*) as total",
@@ -53,8 +51,7 @@ $countResult = $countStmt->get_result();
 $totalRows = $countResult->fetch_assoc()['total'];
 $totalPages = ceil($totalRows / $limit);
 
-/* Add pagination */
-$query .= " ORDER BY projects.id DESC LIMIT ? OFFSET ?";
+$query .= " ORDER BY projects.id ASC LIMIT ? OFFSET ?";
 $params[] = $limit;
 $params[] = $offset;
 $types .= "ii";
@@ -78,7 +75,7 @@ $result = $stmt->get_result();
 
 <h2 class="mb-3">Project Management</h2>
 
-<!-- SUCCESS ALERTS -->
+
 <?php if(isset($_GET['added'])): ?>
 <div class="alert alert-success" id="alertBox">Project added successfully!</div>
 <?php endif; ?>
@@ -98,7 +95,7 @@ setTimeout(function(){
 },3000);
 </script>
 
-<!-- SEARCH + FILTER -->
+
 <form method="GET" class="row g-2 mb-3">
 <div class="col-md-4">
 <input type="text" name="search" class="form-control"
@@ -199,7 +196,7 @@ Delete
 </tbody>
 </table>
 
-<!-- PAGINATION -->
+
 <?php if($totalPages > 1): ?>
 <nav>
 <ul class="pagination justify-content-center">
@@ -219,7 +216,7 @@ $url="?".http_build_query($params);
 
 </div>
 
-<!-- ADD MODAL -->
+
 <div class="modal fade" id="addModal">
 <div class="modal-dialog">
 <div class="modal-content">
@@ -250,7 +247,7 @@ $url="?".http_build_query($params);
 </div>
 </div>
 
-<!-- EDIT MODAL -->
+
 <div class="modal fade" id="editModal">
 <div class="modal-dialog">
 <div class="modal-content">
@@ -282,7 +279,7 @@ $url="?".http_build_query($params);
 </div>
 </div>
 
-<!-- DELETE MODAL -->
+
 <div class="modal fade" id="deleteModal">
 <div class="modal-dialog">
 <div class="modal-content">

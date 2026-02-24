@@ -13,4 +13,14 @@ if (!isset($_SESSION['user_id'])) {
     header("Location: /worknest-erp/src/auth/login.php");
     exit();
 }
-?>
+
+if (isset($_SESSION['LAST_ACTIVITY']) &&
+    (time() - $_SESSION['LAST_ACTIVITY'] > 1800)) {
+
+    session_unset();
+    session_destroy();
+    header("Location: /worknest-erp/src/auth/login.php?timeout=1");
+    exit();
+}
+
+$_SESSION['LAST_ACTIVITY'] = time();

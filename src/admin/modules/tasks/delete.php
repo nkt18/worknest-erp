@@ -1,6 +1,6 @@
 <?php
-require_once "../../middleware/admin.php";
-require_once "../../config/database.php";
+require_once dirname(__DIR__, 3) . "/middleware/admin.php";
+require_once dirname(__DIR__, 3) . "/config/database.php";
 
 $db = new Database();
 $conn = $db->connect();

@@ -1,21 +1,21 @@
 <?php
-require_once "../../middleware/admin.php";
-require_once "../../config/database.php";
 
+require_once dirname(__DIR__, 3) . "/middleware/admin.php";
+require_once dirname(__DIR__, 3) . "/config/database.php";
 $db = new Database();
 $conn = $db->connect();
 
-/* SEARCH + FILTER */
+
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $status = isset($_GET['status']) ? trim($_GET['status']) : '';
 
-/* PAGINATION */
+
 $limit = 5;
 $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
 if ($page < 1) $page = 1;
 $offset = ($page - 1) * $limit;
 
-/* BASE QUERY */
+
 $query = "SELECT tasks.*, 
                  projects.name AS project_name,
                  users.name AS assigned_name
@@ -27,21 +27,18 @@ $query = "SELECT tasks.*,
 $params = [];
 $types = "";
 
-/* Search */
 if (!empty($search)) {
     $query .= " AND tasks.title LIKE ?";
     $params[] = "%$search%";
     $types .= "s";
 }
 
-/* Status Filter */
 if (!empty($status)) {
     $query .= " AND tasks.status = ?";
     $params[] = $status;
     $types .= "s";
 }
 
-/* Count total rows */
 $countQuery = str_replace(
     "SELECT tasks.*, 
                  projects.name AS project_name,
@@ -59,8 +56,7 @@ $countResult = $countStmt->get_result();
 $totalRows = $countResult->fetch_assoc()['total'];
 $totalPages = ceil($totalRows / $limit);
 
-/* Add pagination */
-$query .= " ORDER BY tasks.id DESC LIMIT ? OFFSET ?";
+$query .= " ORDER BY tasks.id ASC LIMIT ? OFFSET ?";
 $params[] = $limit;
 $params[] = $offset;
 $types .= "ii";
@@ -70,10 +66,8 @@ $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $result = $stmt->get_result();
 
-/* Fetch projects for dropdown */
 $projects = $conn->query("SELECT id, name FROM projects");
 
-/* Fetch users for dropdown */
 $users = $conn->query("SELECT id, name FROM users");
 ?>
 
@@ -90,7 +84,6 @@ $users = $conn->query("SELECT id, name FROM users");
 
 <h2 class="mb-3">Task Management</h2>
 
-<!-- SUCCESS ALERTS -->
 <?php if(isset($_GET['added'])): ?>
 <div class="alert alert-success" id="alertBox">Task added successfully!</div>
 <?php endif; ?>
@@ -110,7 +103,6 @@ setTimeout(function(){
 },3000);
 </script>
 
-<!-- SEARCH + FILTER -->
 <form method="GET" class="row g-2 mb-3">
 <div class="col-md-4">
 <input type="text" name="search" class="form-control"
@@ -210,7 +202,6 @@ Delete
 </tbody>
 </table>
 
-<!-- PAGINATION -->
 <?php if($totalPages > 1): ?>
 <nav>
 <ul class="pagination justify-content-center">
@@ -230,7 +221,6 @@ $url="?".http_build_query($params);
 
 </div>
 
-<!-- ADD MODAL -->
 <div class="modal fade" id="addModal">
 <div class="modal-dialog">
 <div class="modal-content">
@@ -275,7 +265,6 @@ $url="?".http_build_query($params);
 </div>
 </div>
 
-<!-- EDIT MODAL -->
 <div class="modal fade" id="editModal">
 <div class="modal-dialog">
 <div class="modal-content">

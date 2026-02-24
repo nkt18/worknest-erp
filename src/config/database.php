@@ -1,26 +1,25 @@
 <?php
 
-class Database
-{
-    private $host = "localhost";
-    private $user = "root";
-    private $pass = "";
-    private $dbname = "worknest_db";
-    private $conn;
+class Database {
 
-    public function connect()
-    {
-        $this->conn = new mysqli(
+    private $host = "localhost";
+    private $username = "root";
+    private $password = "";
+    private $database = "worknest_db";
+
+    public function connect() {
+
+        $conn = new mysqli(
             $this->host,
-            $this->user,
-            $this->pass,
-            $this->dbname
+            $this->username,
+            $this->password,
+            $this->database
         );
 
-        if ($this->conn->connect_error) {
-            die("Database connection failed: " . $this->conn->connect_error);
+        if ($conn->connect_error) {
+            die("Database Connection Failed: " . $conn->connect_error);
         }
 
-        return $this->conn;
+        return $conn;
     }
 }
