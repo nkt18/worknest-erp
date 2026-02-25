@@ -1,17 +1,27 @@
 <?php
-require_once dirname(__DIR__, 3) . "/middleware/admin.php";
-require_once dirname(__DIR__, 3) . "/config/database.php";
 
-$db = new Database();
-$conn = $db->connect();
+require_once dirname(__DIR__,3)."/middleware/admin.php";
 
-if(isset($_GET['id'])){
-    $id = intval($_GET['id']);
+require_once dirname(__DIR__,3)."/config/database.php";
 
-    $stmt = $conn->prepare("DELETE FROM tasks WHERE id = ?");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
+$db=new Database();
+$conn=$db->connect();
 
-    header("Location: index.php?deleted=1");
-    exit();
-}
+
+$id=$_GET['id'];
+
+$stmt=$conn->prepare("
+
+DELETE FROM tasks
+WHERE id=?
+
+");
+
+$stmt->bind_param("i",$id);
+
+$stmt->execute();
+
+
+header("Location:index.php?deleted=1");
+
+exit;

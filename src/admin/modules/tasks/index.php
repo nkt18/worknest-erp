@@ -1,337 +1,725 @@
 <?php
 
-require_once dirname(__DIR__, 3) . "/middleware/admin.php";
-require_once dirname(__DIR__, 3) . "/config/database.php";
-$db = new Database();
-$conn = $db->connect();
+require_once dirname(__DIR__,3)."/middleware/admin.php";
 
+require_once dirname(__DIR__,3)."/layout/admin_header.php";
+require_once dirname(__DIR__,3)."/layout/sidebar_admin.php";
+require_once dirname(__DIR__,3)."/layout/navbar_admin.php";
 
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
-$status = isset($_GET['status']) ? trim($_GET['status']) : '';
-
-
-$limit = 5;
-$page = isset($_GET['page']) ? intval($_GET['page']) : 1;
-if ($page < 1) $page = 1;
-$offset = ($page - 1) * $limit;
-
-
-$query = "SELECT tasks.*, 
-                 projects.name AS project_name,
-                 users.name AS assigned_name
-          FROM tasks
-          LEFT JOIN projects ON tasks.project_id = projects.id
-          LEFT JOIN users ON tasks.assigned_to = users.id
-          WHERE 1=1";
-
-$params = [];
-$types = "";
-
-if (!empty($search)) {
-    $query .= " AND tasks.title LIKE ?";
-    $params[] = "%$search%";
-    $types .= "s";
-}
-
-if (!empty($status)) {
-    $query .= " AND tasks.status = ?";
-    $params[] = $status;
-    $types .= "s";
-}
-
-$countQuery = str_replace(
-    "SELECT tasks.*, 
-                 projects.name AS project_name,
-                 users.name AS assigned_name",
-    "SELECT COUNT(*) as total",
-    $query
-);
-
-$countStmt = $conn->prepare($countQuery);
-if (!empty($params)) {
-    $countStmt->bind_param($types, ...$params);
-}
-$countStmt->execute();
-$countResult = $countStmt->get_result();
-$totalRows = $countResult->fetch_assoc()['total'];
-$totalPages = ceil($totalRows / $limit);
-
-$query .= " ORDER BY tasks.id ASC LIMIT ? OFFSET ?";
-$params[] = $limit;
-$params[] = $offset;
-$types .= "ii";
-
-$stmt = $conn->prepare($query);
-$stmt->bind_param($types, ...$params);
-$stmt->execute();
-$result = $stmt->get_result();
-
-$projects = $conn->query("SELECT id, name FROM projects");
-
-$users = $conn->query("SELECT id, name FROM users");
 ?>
 
-<!DOCTYPE html>
-<html>
-<head>
-<title>Task Management - WorkNest ERP</title>
-<meta charset="UTF-8">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
+<div class="content">
 
-<div class="container mt-4">
+<h4 class="mb-4 fw-semibold">Task Management</h4>
 
-<h2 class="mb-3">Task Management</h2>
+<div class="card dashboard-card p-4">
 
-<?php if(isset($_GET['added'])): ?>
-<div class="alert alert-success" id="alertBox">Task added successfully!</div>
-<?php endif; ?>
 
-<?php if(isset($_GET['updated'])): ?>
-<div class="alert alert-success" id="alertBox">Task updated successfully!</div>
-<?php endif; ?>
+<div class="row mb-3">
 
-<?php if(isset($_GET['deleted'])): ?>
-<div class="alert alert-danger" id="alertBox">Task deleted successfully!</div>
-<?php endif; ?>
-
-<script>
-setTimeout(function(){
-    var alertBox = document.getElementById('alertBox');
-    if(alertBox){ alertBox.remove(); }
-},3000);
-</script>
-
-<form method="GET" class="row g-2 mb-3">
 <div class="col-md-4">
-<input type="text" name="search" class="form-control"
-placeholder="Search task..."
-value="<?= htmlspecialchars($search) ?>">
+
+<input type="text"
+id="searchBox"
+class="form-control"
+placeholder="Search task">
+
 </div>
 
 <div class="col-md-3">
-<select name="status" class="form-select">
+
+<select id="statusFilter" class="form-select">
+
 <option value="">All Status</option>
-<option value="pending" <?= ($status=="pending")?'selected':'' ?>>Pending</option>
-<option value="in_progress" <?= ($status=="in_progress")?'selected':'' ?>>In Progress</option>
-<option value="completed" <?= ($status=="completed")?'selected':'' ?>>Completed</option>
+<option value="pending">Pending</option>
+<option value="in_progress">In Progress</option>
+<option value="completed">Completed</option>
+
 </select>
+
 </div>
 
-<div class="col-md-2">
-<button class="btn btn-primary w-100">Search</button>
-</div>
+<div class="col-md-3">
 
-<div class="col-md-2">
-<a href="index.php" class="btn btn-secondary w-100">Reset</a>
-</div>
-</form>
+<button class="btn btn-primary"
+data-bs-toggle="modal"
+data-bs-target="#addModal">
 
-<a href="../../dashboard.php" class="btn btn-secondary mb-3">← Back</a>
-
-<button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addModal">
 + Add Task
+
 </button>
 
-<table class="table table-bordered table-hover align-middle">
-<thead class="table-dark">
+</div>
+
+</div>
+
+
+<table class="table table-hover">
+
+<thead class="table-light">
+
 <tr>
+
 <th>ID</th>
 <th>Title</th>
 <th>Project</th>
-<th>Assigned To</th>
+<th>User</th>
 <th>Status</th>
-<th>Due Date</th>
-<th>Actions</th>
+
+<th width="150">Actions</th>
+
 </tr>
+
 </thead>
-<tbody>
 
-<?php if($result->num_rows > 0): ?>
-<?php while($row = $result->fetch_assoc()): ?>
+
+<tbody id="taskTable">
+
 <tr>
-<td><?= $row['id'] ?></td>
-<td><?= htmlspecialchars($row['title']) ?></td>
-<td><?= htmlspecialchars($row['project_name']) ?></td>
-<td><?= htmlspecialchars($row['assigned_name']) ?></td>
 
-<td>
-<?php
-$badge = "secondary";
-if($row['status']=="pending") $badge="warning";
-if($row['status']=="in_progress") $badge="primary";
-if($row['status']=="completed") $badge="success";
-?>
-<span class="badge bg-<?= $badge ?>">
-<?= ucfirst(str_replace("_"," ",$row['status'])) ?>
-</span>
+<td colspan="6"
+class="text-center text-muted">
+
+Loading tasks...
+
 </td>
 
-<td><?= $row['due_date'] ?></td>
-
-<td>
-<div class="d-flex gap-2">
-
-<button class="btn btn-warning btn-sm"
-data-bs-toggle="modal"
-data-bs-target="#editModal"
-data-id="<?= $row['id'] ?>"
-data-title="<?= htmlspecialchars($row['title']) ?>"
-data-project="<?= $row['project_id'] ?>"
-data-assigned="<?= $row['assigned_to'] ?>"
-data-status="<?= $row['status'] ?>"
-data-due="<?= $row['due_date'] ?>">
-Edit
-</button>
-
-<a href="delete.php?id=<?= $row['id'] ?>" class="btn btn-danger btn-sm">
-Delete
-</a>
-
-</div>
-</td>
 </tr>
-<?php endwhile; ?>
-<?php else: ?>
-<tr>
-<td colspan="7" class="text-center text-muted">No tasks found.</td>
-</tr>
-<?php endif; ?>
 
 </tbody>
+
 </table>
 
-<?php if($totalPages > 1): ?>
+
+
 <nav>
-<ul class="pagination justify-content-center">
-<?php for($i=1;$i<=$totalPages;$i++): ?>
-<?php
-$params = $_GET;
-$params['page']=$i;
-$url="?".http_build_query($params);
-?>
-<li class="page-item <?= ($i==$page)?'active':'' ?>">
-<a class="page-link" href="<?= $url ?>"><?= $i ?></a>
-</li>
-<?php endfor; ?>
+
+<ul class="pagination justify-content-center"
+id="pagination">
+
 </ul>
+
 </nav>
-<?php endif; ?>
+
 
 </div>
+
+</div>
+
+
+<!-- ADD MODAL -->
 
 <div class="modal fade" id="addModal">
+
 <div class="modal-dialog">
+
 <div class="modal-content">
-<form method="POST" action="store.php">
+
 <div class="modal-header">
-<h5 class="modal-title">Add Task</h5>
-<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+
+<h5>Add Task</h5>
+
+<button class="btn-close"
+data-bs-dismiss="modal"></button>
+
 </div>
 
 <div class="modal-body">
-<input type="text" name="title" class="form-control mb-2" placeholder="Task Title" required>
 
-<select name="project_id" class="form-select mb-2" required>
-<option value="">Select Project</option>
-<?php while($p = $projects->fetch_assoc()): ?>
-<option value="<?= $p['id'] ?>"><?= $p['name'] ?></option>
-<?php endwhile; ?>
-</select>
+<input id="addTitle"
+class="form-control mb-2"
+placeholder="Title">
 
-<select name="assigned_to" class="form-select mb-2">
-<option value="">Assign To</option>
-<?php while($u = $users->fetch_assoc()): ?>
-<option value="<?= $u['id'] ?>"><?= $u['name'] ?></option>
-<?php endwhile; ?>
-</select>
+<textarea id="addDescription"
+class="form-control mb-2"
+placeholder="Description"></textarea>
 
-<select name="status" class="form-select mb-2">
+
+<select id="addProject"
+class="form-control mb-2"></select>
+
+
+<select id="addUser"
+class="form-control mb-2"></select>
+
+
+<select id="addStatus"
+class="form-control mb-2">
+
 <option value="pending">Pending</option>
 <option value="in_progress">In Progress</option>
 <option value="completed">Completed</option>
+
 </select>
 
-<label>Due Date</label>
-<input type="date" name="due_date" class="form-control mb-2" required>
+
+<input type="date"
+id="addDue"
+class="form-control mb-2">
+
 </div>
 
 <div class="modal-footer">
-<button class="btn btn-success">Save</button>
+
+<button class="btn btn-success"
+onclick="addTask()">
+
+Save
+
+</button>
+
 </div>
-</form>
+
 </div>
+
 </div>
+
 </div>
+
+
+
+<!-- EDIT MODAL -->
 
 <div class="modal fade" id="editModal">
+
 <div class="modal-dialog">
+
 <div class="modal-content">
-<form method="POST" action="update.php">
+
 <div class="modal-header">
-<h5 class="modal-title">Edit Task</h5>
-<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+
+<h5>Edit Task</h5>
+
+<button class="btn-close"
+data-bs-dismiss="modal"></button>
+
 </div>
 
 <div class="modal-body">
-<input type="hidden" name="task_id" id="edit_id">
-<input type="text" name="title" id="edit_title" class="form-control mb-2" required>
 
-<select name="project_id" id="edit_project" class="form-select mb-2" required>
-<option value="">Select Project</option>
-<?php
-$projects2 = $conn->query("SELECT id, name FROM projects");
-while($p = $projects2->fetch_assoc()):
-?>
-<option value="<?= $p['id'] ?>"><?= $p['name'] ?></option>
-<?php endwhile; ?>
-</select>
+<input type="hidden" id="editId">
 
-<select name="assigned_to" id="edit_assigned" class="form-select mb-2">
-<option value="">Assign To</option>
-<?php
-$users2 = $conn->query("SELECT id, name FROM users");
-while($u = $users2->fetch_assoc()):
-?>
-<option value="<?= $u['id'] ?>"><?= $u['name'] ?></option>
-<?php endwhile; ?>
-</select>
+<input id="editTitle"
+class="form-control mb-2">
 
-<select name="status" id="edit_status" class="form-select mb-2">
+
+<textarea id="editDescription"
+class="form-control mb-2"></textarea>
+
+
+<select id="editProject"
+class="form-control mb-2"></select>
+
+
+<select id="editUser"
+class="form-control mb-2"></select>
+
+
+<select id="editStatus"
+class="form-control mb-2">
+
 <option value="pending">Pending</option>
 <option value="in_progress">In Progress</option>
 <option value="completed">Completed</option>
+
 </select>
 
-<label>Due Date</label>
-<input type="date" name="due_date" id="edit_due" class="form-control mb-2" required>
+
+<input type="date"
+id="editDue"
+class="form-control mb-2">
+
 </div>
 
 <div class="modal-footer">
-<button class="btn btn-success">Update</button>
-</div>
-</form>
-</div>
-</div>
+
+<button class="btn btn-success"
+onclick="updateTask()">
+
+Update
+
+</button>
+
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</div>
+
+</div>
+
+</div>
+
+
+
+<!-- DELETE MODAL -->
+
+<div class="modal fade" id="deleteModal">
+
+<div class="modal-dialog">
+
+<div class="modal-content">
+
+<div class="modal-header">
+
+<h5>Confirm Delete</h5>
+
+<button class="btn-close"
+data-bs-dismiss="modal"></button>
+
+</div>
+
+<div class="modal-body">
+
+Delete this task?
+
+</div>
+
+<div class="modal-footer">
+
+<button class="btn btn-danger"
+onclick="deleteTask()">
+
+Delete
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
 
 <script>
-var editModal = document.getElementById('editModal');
 
-editModal.addEventListener('show.bs.modal', function (event) {
-var button = event.relatedTarget;
+let tasks=[];
+let filtered=[];
+let page=1;
+let limit=5;
+let deleteId=null;
 
-document.getElementById('edit_id').value = button.getAttribute('data-id');
-document.getElementById('edit_title').value = button.getAttribute('data-title');
-document.getElementById('edit_project').value = button.getAttribute('data-project');
-document.getElementById('edit_assigned').value = button.getAttribute('data-assigned');
-document.getElementById('edit_status').value = button.getAttribute('data-status');
-document.getElementById('edit_due').value = button.getAttribute('data-due');
+
+/* LOAD */
+
+loadTasks();
+
+loadProjects();
+
+loadUsers();
+
+
+
+function loadTasks(){
+
+fetch("/worknest-erp/src/api/tasks.php")
+
+.then(res=>res.json())
+
+.then(data=>{
+
+tasks=data.data;
+
+applyFilters();
+
 });
+
+}
+
+
+
+/* LOAD PROJECTS */
+
+function loadProjects(){
+
+fetch("/worknest-erp/src/api/projects.php")
+
+.then(res=>res.json())
+
+.then(data=>{
+
+let options="";
+
+data.data.forEach(p=>{
+
+options+=`<option value="${p.id}">${p.name}</option>`;
+
+});
+
+addProject.innerHTML=options;
+editProject.innerHTML=options;
+
+});
+
+}
+
+
+
+/* LOAD USERS */
+
+function loadUsers(){
+
+fetch("/worknest-erp/src/api/employees.php")
+
+.then(res=>res.json())
+
+.then(data=>{
+
+let options="";
+
+data.data.forEach(u=>{
+
+options+=`<option value="${u.id}">${u.name}</option>`;
+
+});
+
+addUser.innerHTML=options;
+editUser.innerHTML=options;
+
+});
+
+}
+
+
+
+/* FILTER */
+
+searchBox.addEventListener("keyup",applyFilters);
+statusFilter.addEventListener("change",applyFilters);
+
+
+
+function applyFilters(){
+
+let s=searchBox.value.toLowerCase();
+let st=statusFilter.value;
+
+
+filtered=tasks.filter(t=>
+
+(t.title.toLowerCase().includes(s))
+&&
+(st==""||t.status==st)
+
+);
+
+page=1;
+
+renderTable();
+
+}
+
+
+
+/* TABLE */
+
+function renderTable(){
+
+let start=(page-1)*limit;
+
+let end=start+limit;
+
+let rows="";
+
+
+filtered.slice(start,end).forEach(t=>{
+
+rows+=`
+
+<tr>
+
+<td>${t.id}</td>
+
+<td>${t.title}</td>
+
+<td>${t.project_name}</td>
+
+<td>${t.user_name}</td>
+
+<td>${t.status}</td>
+
+<td>
+
+<button class="btn btn-warning btn-sm"
+onclick='openEdit(${JSON.stringify(t)})'>
+
+Edit
+
+</button>
+
+<button class="btn btn-danger btn-sm"
+onclick='openDelete(${t.id})'>
+
+Delete
+
+</button>
+
+</td>
+
+</tr>
+
+`;
+
+});
+
+
+if(rows===""){
+
+rows=`
+
+<tr>
+
+<td colspan="6"
+class="text-center text-muted">
+
+No tasks found
+
+</td>
+
+</tr>
+
+`;
+
+}
+
+
+taskTable.innerHTML=rows;
+
+renderPagination();
+
+}
+
+
+
+/* PAGINATION */
+
+function renderPagination(){
+
+let totalPages=Math.ceil(filtered.length/limit);
+
+let buttons="";
+
+
+for(let i=1;i<=totalPages;i++){
+
+buttons+=`
+
+<li class="page-item ${i==page?'active':''}">
+
+<a class="page-link"
+href="#"
+onclick="gotoPage(${i})">
+
+${i}
+
+</a>
+
+</li>
+
+`;
+
+}
+
+
+pagination.innerHTML=buttons;
+
+}
+
+
+
+function gotoPage(p){
+
+page=p;
+
+renderTable();
+
+}
+
+
+
+/* ADD */
+
+function addTask(){
+
+fetch("/worknest-erp/src/api/tasks.php",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+
+title:addTitle.value,
+description:addDescription.value,
+project_id:addProject.value,
+assigned_to:addUser.value,
+status:addStatus.value,
+due_date:addDue.value
+
+})
+
+})
+
+.then(res=>res.json())
+
+.then(data=>{
+
+if(data.success){
+
+showToast("Task Added");
+
+loadTasks();
+
+bootstrap.Modal.getInstance(addModal).hide();
+
+}
+
+});
+
+}
+
+
+
+/* EDIT */
+
+function openEdit(t){
+
+editId.value=t.id;
+
+editTitle.value=t.title;
+
+editDescription.value=t.description;
+
+editProject.value=t.project_id;
+
+editUser.value=t.assigned_to;
+
+editStatus.value=t.status;
+
+editDue.value=t.due_date;
+
+new bootstrap.Modal(editModal).show();
+
+}
+
+
+
+function updateTask(){
+
+fetch(`/worknest-erp/src/api/tasks.php?id=${editId.value}`,{
+
+method:"PUT",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+
+title:editTitle.value,
+description:editDescription.value,
+project_id:editProject.value,
+assigned_to:editUser.value,
+status:editStatus.value,
+due_date:editDue.value
+
+})
+
+})
+
+.then(res=>res.json())
+
+.then(data=>{
+
+if(data.success){
+
+showToast("Updated");
+
+loadTasks();
+
+bootstrap.Modal.getInstance(editModal).hide();
+
+}
+
+});
+
+}
+
+
+
+/* DELETE */
+
+function openDelete(id){
+
+deleteId=id;
+
+new bootstrap.Modal(deleteModal).show();
+
+}
+
+
+function deleteTask(){
+
+fetch(`/worknest-erp/src/api/tasks.php?id=${deleteId}`,{
+
+method:"DELETE"
+
+})
+
+.then(res=>res.json())
+
+.then(data=>{
+
+if(data.success){
+
+showToast("Deleted");
+
+loadTasks();
+
+bootstrap.Modal.getInstance(deleteModal).hide();
+
+}
+
+});
+
+}
+
+
+
+/* TOAST */
+
+function showToast(msg,error=false){
+
+let toast=document.createElement("div");
+
+toast.className="position-fixed top-0 end-0 p-3";
+
+toast.innerHTML=`
+
+<div class="toast show text-white
+${error?'bg-danger':'bg-success'}">
+
+<div class="toast-body">
+
+${msg}
+
+</div>
+
+</div>
+
+`;
+
+document.body.appendChild(toast);
+
+setTimeout(()=>toast.remove(),3000);
+
+}
+
+
 </script>
 
-</body>
-</html>
+
+<?php require_once dirname(__DIR__,3)."/layout/footer.php"; ?>

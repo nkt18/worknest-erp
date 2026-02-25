@@ -1,276 +1,679 @@
 <?php
 
-require_once dirname(__DIR__, 3) . "/middleware/admin.php";
-require_once dirname(__DIR__, 3) . "/config/database.php";
+require_once dirname(__DIR__,3)."/middleware/admin.php";
 
-$db = new Database();
-$conn = $db->connect();
+require_once dirname(__DIR__,3)."/layout/admin_header.php";
+require_once dirname(__DIR__,3)."/layout/sidebar_admin.php";
+require_once dirname(__DIR__,3)."/layout/navbar_admin.php";
 
-
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
-$department = isset($_GET['department']) ? trim($_GET['department']) : '';
-
-$limit = 5;
-$page = isset($_GET['page']) ? intval($_GET['page']) : 1;
-if ($page < 1) $page = 1;
-$offset = ($page - 1) * $limit;
-
-$query = "SELECT 
-            employees.id, 
-            users.name, 
-            users.email, 
-            employees.designation,
-            employees.phone,
-            employees.department
-          FROM employees
-          JOIN users ON employees.user_id = users.id
-          WHERE 1=1";
-
-$params = [];
-$types = "";
-
-// Search 
-if (!empty($search)) {
-    $query .= " AND (users.name LIKE ? OR users.email LIKE ?)";
-    $searchTerm = "%$search%";
-    $params[] = $searchTerm;
-    $params[] = $searchTerm;
-    $types .= "ss";
-}
-
-// Filter
-if (!empty($department)) {
-    $query .= " AND employees.department = ?";
-    $params[] = $department;
-    $types .= "s";
-}
-
-// Count total rows
-$countQuery = "SELECT COUNT(*) as total
-               FROM employees
-               JOIN users ON employees.user_id = users.id
-               WHERE 1=1";
-
-if (!empty($search)) {
-    $countQuery .= " AND (users.name LIKE ? OR users.email LIKE ?)";
-}
-if (!empty($department)) {
-    $countQuery .= " AND employees.department = ?";
-}
-
-$countStmt = $conn->prepare($countQuery);
-
-if (!empty($params)) {
-    $countStmt->bind_param($types, ...$params);
-}
-
-$countStmt->execute();
-$countResult = $countStmt->get_result();
-$totalRows = $countResult->fetch_assoc()['total'];
-$totalPages = ceil($totalRows / $limit);
-
-// Add pagination
-$query .= " ORDER BY employees.id ASC LIMIT ? OFFSET ?";
-$params[] = $limit;
-$params[] = $offset;
-$types .= "ii";
-
-$stmt = $conn->prepare($query);
-$stmt->bind_param($types, ...$params);
-$stmt->execute();
-$result = $stmt->get_result();
 ?>
 
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Employee Management - WorkNest ERP</title>
-    <meta charset="UTF-8">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
+<div class="content">
 
-<div class="container mt-4">
+<h4 class="mb-4 fw-semibold">Employee Management</h4>
 
+<div class="card dashboard-card p-4">
 
-<?php if(isset($_GET['updated'])): ?>
-<div class="alert alert-success" id="alertBox">Employee updated successfully!</div>
-<?php endif; ?>
+<div class="row mb-3">
 
-<?php if(isset($_GET['deleted'])): ?>
-<div class="alert alert-danger" id="alertBox">Employee deleted successfully!</div>
-<?php endif; ?>
+<div class="col-md-4">
 
-<script>
-setTimeout(function(){
-    var alertBox = document.getElementById('alertBox');
-    if(alertBox){ alertBox.remove(); }
-}, 3000);
-</script>
+<input type="text"
+id="searchBox"
+class="form-control"
+placeholder="Search employee">
 
-<h2 class="mb-3">Employee Management</h2>
+</div>
 
+<div class="col-md-3">
 
-<form method="GET" class="row g-2 mb-3">
-    <div class="col-md-4">
-        <input type="text" name="search" class="form-control"
-               placeholder="Search by name or email"
-               value="<?= htmlspecialchars($search) ?>">
-    </div>
+<select id="departmentFilter" class="form-select">
 
-    <div class="col-md-3">
-        <select name="department" class="form-select">
-            <option value="">All Departments</option>
-            <option value="HR" <?= ($department=="HR")?'selected':'' ?>>HR</option>
-            <option value="IT" <?= ($department=="IT")?'selected':'' ?>>IT</option>
-            <option value="Finance" <?= ($department=="Finance")?'selected':'' ?>>Finance</option>
-        </select>
-    </div>
+<option value="">All Departments</option>
+<option value="HR">HR</option>
+<option value="IT">IT</option>
+<option value="Finance">Finance</option>
 
-    <div class="col-md-2">
-        <button class="btn btn-primary w-100">Search</button>
-    </div>
+</select>
 
-    <div class="col-md-2">
-        <a href="index.php" class="btn btn-secondary w-100">Reset</a>
-    </div>
-</form>
+</div>
 
-<a href="../../dashboard.php" class="btn btn-secondary mb-3">← Back</a>
+<div class="col-md-3">
 
-<button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addModal">
+<button class="btn btn-primary"
+data-bs-toggle="modal"
+data-bs-target="#addModal">
+
 + Add Employee
+
 </button>
 
-<table class="table table-hover table-bordered align-middle">
-<thead class="table-dark">
+</div>
+
+</div>
+
+
+<table class="table table-hover">
+
+<thead class="table-light">
+
 <tr>
+
 <th>ID</th>
 <th>Name</th>
 <th>Email</th>
 <th>Designation</th>
 <th>Phone</th>
 <th>Department</th>
-<th>Actions</th>
-</tr>
-</thead>
-<tbody>
+<th width="150">Actions</th>
 
-<?php if($result->num_rows > 0): ?>
-<?php while($row = $result->fetch_assoc()): ?>
+</tr>
+
+</thead>
+
+<tbody id="employeeTable">
+
 <tr>
-<td><?= $row['id'] ?></td>
-<td><?= htmlspecialchars($row['name']) ?></td>
-<td><?= htmlspecialchars($row['email']) ?></td>
-<td><?= htmlspecialchars($row['designation']) ?></td>
-<td><?= htmlspecialchars($row['phone']) ?></td>
-<td><?= htmlspecialchars($row['department']) ?></td>
+
+<td colspan="7" class="text-center text-muted">
+
+Loading employees...
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+
+<nav>
+
+<ul class="pagination justify-content-center"
+id="pagination">
+
+</ul>
+
+</nav>
+
+</div>
+
+</div>
+
+
+<!-- ADD MODAL -->
+
+<div class="modal fade" id="addModal">
+
+<div class="modal-dialog">
+
+<div class="modal-content">
+
+<div class="modal-header">
+
+<h5>Add Employee</h5>
+
+<button class="btn-close"
+data-bs-dismiss="modal"></button>
+
+</div>
+
+<div class="modal-body">
+
+<input id="addName"
+class="form-control mb-2"
+placeholder="Name">
+
+<input id="addEmail"
+class="form-control mb-2"
+placeholder="Email">
+
+<input id="addDesignation"
+class="form-control mb-2"
+placeholder="Designation">
+
+<input id="addPhone"
+class="form-control mb-2"
+placeholder="Phone">
+
+<input id="addDepartment"
+class="form-control mb-2"
+placeholder="Department">
+
+</div>
+
+<div class="modal-footer">
+
+<button class="btn btn-success"
+onclick="addEmployee()">
+
+Save
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<!-- EDIT MODAL -->
+
+<div class="modal fade" id="editModal">
+
+<div class="modal-dialog">
+
+<div class="modal-content">
+
+<div class="modal-header">
+
+<h5>Edit Employee</h5>
+
+<button class="btn-close"
+data-bs-dismiss="modal"></button>
+
+</div>
+
+<div class="modal-body">
+
+<input type="hidden" id="editId">
+
+<input id="editName"
+class="form-control mb-2">
+
+<input id="editEmail"
+class="form-control mb-2">
+
+<input id="editDesignation"
+class="form-control mb-2">
+
+<input id="editPhone"
+class="form-control mb-2">
+
+<input id="editDepartment"
+class="form-control mb-2">
+
+</div>
+
+<div class="modal-footer">
+
+<button class="btn btn-success"
+onclick="updateEmployee()">
+
+Update
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<!-- DELETE MODAL -->
+
+<div class="modal fade" id="deleteModal">
+
+<div class="modal-dialog">
+
+<div class="modal-content">
+
+<div class="modal-header">
+
+<h5>Confirm Delete</h5>
+
+<button class="btn-close"
+data-bs-dismiss="modal"></button>
+
+</div>
+
+<div class="modal-body">
+
+Delete this employee?
+
+</div>
+
+<div class="modal-footer">
+
+<button class="btn btn-danger"
+onclick="deleteEmployee()">
+
+Delete
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<script>
+
+
+let employees=[];
+let filtered=[];
+let page=1;
+let limit=5;
+let deleteId=null;
+
+
+/* LOAD */
+
+loadEmployees();
+
+
+function loadEmployees(){
+
+fetch("/worknest-erp/src/api/employees.php")
+
+.then(res=>res.json())
+
+.then(data=>{
+
+employees=data.data;
+
+applyFilters();
+
+});
+
+}
+
+
+/* SEARCH */
+
+document.getElementById("searchBox")
+.addEventListener("keyup",applyFilters);
+
+
+document.getElementById("departmentFilter")
+.addEventListener("change",applyFilters);
+
+
+
+function applyFilters(){
+
+let search=
+document.getElementById("searchBox")
+.value.toLowerCase();
+
+let dept=
+document.getElementById("departmentFilter")
+.value;
+
+filtered=employees.filter(emp=>{
+
+return(
+
+(emp.name.toLowerCase().includes(search)
+||
+
+emp.email.toLowerCase().includes(search))
+
+&&
+
+(dept==""||emp.department==dept)
+
+);
+
+});
+
+
+page=1;
+
+renderTable();
+
+}
+
+
+/* TABLE */
+
+
+function renderTable(){
+
+let start=(page-1)*limit;
+
+let end=start+limit;
+
+let rows="";
+
+
+filtered.slice(start,end)
+.forEach(emp=>{
+
+rows+=`
+
+<tr>
+
+<td>${emp.id}</td>
+
+<td>${emp.name}</td>
+
+<td>${emp.email}</td>
+
+<td>${emp.designation}</td>
+
+<td>${emp.phone}</td>
+
+<td>${emp.department}</td>
+
 <td>
-<div class="d-flex gap-2">
 
 <button class="btn btn-warning btn-sm"
-data-bs-toggle="modal"
-data-bs-target="#editModal"
-data-id="<?= $row['id'] ?>"
-data-name="<?= htmlspecialchars($row['name']) ?>"
-data-email="<?= htmlspecialchars($row['email']) ?>"
-data-designation="<?= htmlspecialchars($row['designation']) ?>"
-data-phone="<?= htmlspecialchars($row['phone']) ?>"
-data-department="<?= htmlspecialchars($row['department']) ?>">
+
+onclick='openEdit(${JSON.stringify(emp)})'>
+
 Edit
+
 </button>
 
 <button class="btn btn-danger btn-sm"
-data-bs-toggle="modal"
-data-bs-target="#deleteModal"
-data-id="<?= $row['id'] ?>">
+
+onclick='openDelete(${emp.id})'>
+
 Delete
+
 </button>
 
-</div>
 </td>
+
 </tr>
-<?php endwhile; ?>
-<?php else: ?>
-<tr>
-<td colspan="7" class="text-center text-muted">No employees found.</td>
-</tr>
-<?php endif; ?>
 
-</tbody>
-</table>
+`;
 
-<?php if($totalPages > 1): ?>
-<nav>
-<ul class="pagination justify-content-center">
-<?php for($i=1;$i<=$totalPages;$i++): ?>
-<?php
-$params = $_GET;
-$params['page']=$i;
-$url="?".http_build_query($params);
-?>
-<li class="page-item <?= ($i==$page)?'active':'' ?>">
-<a class="page-link" href="<?= $url ?>"><?= $i ?></a>
-</li>
-<?php endfor; ?>
-</ul>
-</nav>
-<?php endif; ?>
-
-</div>
-
-
-<div class="modal fade" id="addModal">
-<div class="modal-dialog">
-<div class="modal-content">
-<form method="POST" action="store.php">
-<div class="modal-header">
-<h5 class="modal-title">Add Employee</h5>
-<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-</div>
-<div class="modal-body">
-<input type="text" name="name" class="form-control mb-2" placeholder="Name" required>
-<input type="email" name="email" class="form-control mb-2" placeholder="Email" required>
-<input type="text" name="designation" class="form-control mb-2" placeholder="Designation" required>
-<input type="text" name="phone" class="form-control mb-2" placeholder="Phone" required>
-<input type="text" name="department" class="form-control mb-2" placeholder="Department" required>
-</div>
-<div class="modal-footer">
-<button class="btn btn-success">Save</button>
-</div>
-</form>
-</div>
-</div>
-</div>
-
-
-<div class="modal fade" id="deleteModal">
-<div class="modal-dialog">
-<div class="modal-content">
-<div class="modal-header">
-<h5 class="modal-title">Confirm Delete</h5>
-<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-</div>
-<div class="modal-body">
-Are you sure you want to delete this employee?
-</div>
-<div class="modal-footer">
-<a href="#" id="confirmDeleteBtn" class="btn btn-danger">Yes Delete</a>
-</div>
-</div>
-</div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-<script>
-var deleteModal=document.getElementById('deleteModal');
-deleteModal.addEventListener('show.bs.modal',function(event){
-var button=event.relatedTarget;
-var id=button.getAttribute('data-id');
-document.getElementById('confirmDeleteBtn').setAttribute('href','delete.php?id='+id);
 });
+
+
+if(rows===""){
+
+rows=`
+
+<tr>
+
+<td colspan="7"
+class="text-center text-muted">
+
+No employees found
+
+</td>
+
+</tr>
+
+`;
+
+}
+
+
+document.getElementById("employeeTable")
+.innerHTML=rows;
+
+renderPagination();
+
+}
+
+
+
+/* PAGINATION */
+
+
+function renderPagination(){
+
+let totalPages=
+Math.ceil(filtered.length/limit);
+
+let buttons="";
+
+
+for(let i=1;i<=totalPages;i++){
+
+buttons+=`
+
+<li class="page-item
+${i==page?'active':''}">
+
+<a class="page-link"
+href="#"
+
+onclick="gotoPage(${i})">
+
+${i}
+
+</a>
+
+</li>
+
+`;
+
+}
+
+
+document.getElementById("pagination")
+.innerHTML=buttons;
+
+}
+
+
+function gotoPage(p){
+
+page=p;
+
+renderTable();
+
+}
+
+
+
+/* ADD */
+
+
+function addEmployee(){
+
+fetch("/worknest-erp/src/api/employees.php",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+
+name:addName.value,
+email:addEmail.value,
+designation:addDesignation.value,
+phone:addPhone.value,
+department:addDepartment.value
+
+})
+
+})
+
+.then(res=>res.json())
+
+.then(data=>{
+
+if(data.success){
+
+showToast("Employee Added");
+
+loadEmployees();
+
+bootstrap.Modal.getInstance(
+document.getElementById("addModal"))
+.hide();
+
+}else{
+
+showToast(data.message,true);
+
+}
+
+});
+
+}
+
+
+
+/* EDIT */
+
+
+function openEdit(emp){
+
+editId.value=emp.id;
+
+editName.value=emp.name;
+
+editEmail.value=emp.email;
+
+editDesignation.value=emp.designation;
+
+editPhone.value=emp.phone;
+
+editDepartment.value=emp.department;
+
+new bootstrap.Modal(
+document.getElementById("editModal"))
+.show();
+
+}
+
+
+
+function updateEmployee(){
+
+fetch(`/worknest-erp/src/api/employees.php?id=${editId.value}`,{
+
+method:"PUT",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+
+name:editName.value,
+email:editEmail.value,
+designation:editDesignation.value,
+phone:editPhone.value,
+department:editDepartment.value
+
+})
+
+})
+
+.then(res=>res.json())
+
+.then(data=>{
+
+if(data.success){
+
+showToast("Updated");
+
+loadEmployees();
+
+bootstrap.Modal.getInstance(
+document.getElementById("editModal"))
+.hide();
+
+}
+
+});
+
+}
+
+
+
+/* DELETE */
+
+
+function openDelete(id){
+
+deleteId=id;
+
+new bootstrap.Modal(
+document.getElementById("deleteModal"))
+.show();
+
+}
+
+
+
+function deleteEmployee(){
+
+fetch(`/worknest-erp/src/api/employees.php?id=${deleteId}`,{
+
+method:"DELETE"
+
+})
+
+.then(res=>res.json())
+
+.then(data=>{
+
+if(data.success){
+
+showToast("Deleted");
+
+loadEmployees();
+
+bootstrap.Modal.getInstance(
+document.getElementById("deleteModal"))
+.hide();
+
+}
+
+});
+
+}
+
+
+
+/* TOAST */
+
+
+function showToast(msg,error=false){
+
+let toast=document.createElement("div");
+
+toast.className=
+"position-fixed top-0 end-0 p-3";
+
+toast.innerHTML=`
+
+<div class="toast show text-white
+${error?'bg-danger':'bg-success'}">
+
+<div class="toast-body">
+
+${msg}
+
+</div>
+
+</div>
+
+`;
+
+document.body.appendChild(toast);
+
+setTimeout(()=>toast.remove(),3000);
+
+}
+
+
 </script>
 
-</body>
-</html>
+
+<?php require_once dirname(__DIR__,3)."/layout/footer.php"; ?>

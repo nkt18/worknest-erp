@@ -1,27 +1,52 @@
 <?php
-require_once dirname(__DIR__, 3) . "/middleware/admin.php";
-require_once dirname(__DIR__, 3) . "/config/database.php";
 
-$db = new Database();
-$conn = $db->connect();
+require_once dirname(__DIR__,3)."/middleware/admin.php";
 
-if($_SERVER["REQUEST_METHOD"] === "POST"){
+require_once dirname(__DIR__,3)."/config/database.php";
 
-    $id = intval($_POST['task_id']);
-    $title = trim($_POST['title']);
-    $project_id = intval($_POST['project_id']);
-    $assigned_to = !empty($_POST['assigned_to']) ? intval($_POST['assigned_to']) : NULL;
-    $status = $_POST['status'];
-    $due_date = $_POST['due_date'];
+$db=new Database();
+$conn=$db->connect();
 
-    $stmt = $conn->prepare("UPDATE tasks 
-                            SET title=?, project_id=?, assigned_to=?, status=?, due_date=? 
-                            WHERE id=?");
 
-    $stmt->bind_param("siissi", $title, $project_id, $assigned_to, $status, $due_date, $id);
+$id=$_POST['task_id'];
 
-    $stmt->execute();
+$title=$_POST['title'];
+$description=$_POST['description'];
+$project=$_POST['project_id'];
+$user=$_POST['assigned_to'];
+$status=$_POST['status'];
+$due=$_POST['due_date'];
 
-    header("Location: index.php?updated=1");
-    exit();
-}
+
+$stmt=$conn->prepare("
+
+UPDATE tasks
+
+SET title=?,
+description=?,
+project_id=?,
+assigned_to=?,
+status=?,
+due_date=?
+
+WHERE id=?
+
+");
+
+$stmt->bind_param(
+"ssiissi",
+$title,
+$description,
+$project,
+$user,
+$status,
+$due,
+$id
+);
+
+$stmt->execute();
+
+
+header("Location:index.php?updated=1");
+
+exit;

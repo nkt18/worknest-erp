@@ -1,50 +1,25 @@
 <?php
-require_once dirname(__DIR__, 3) . "/middleware/admin.php";
-require_once dirname(__DIR__, 3) . "/config/database.php";
-require_once dirname(__DIR__, 3) . "/helpers/logger.php";
+
+require_once dirname(__DIR__,3)."/middleware/admin.php";
+
+require_once dirname(__DIR__,3)."/config/database.php";
+
+$db=new Database();
+$conn=$db->connect();
 
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+$id=$_GET['id'];
 
-$db = new Database();
-$conn = $db->connect();
+$stmt=$conn->prepare("
+DELETE FROM projects
+WHERE id=?
+");
 
-if (isset($_GET['id'])) {
+$stmt->bind_param("i",$id);
 
-    $id = intval($_GET['id']);
-
-
-    $get = $conn->prepare("SELECT name FROM projects WHERE id = ?");
-    $get->bind_param("i", $id);
-    $get->execute();
-    $result = $get->get_result();
-    $project = $result->fetch_assoc();
-    $get->close();
-
-    if (!$project) {
-        die("Project not found.");
-    }
-
-    $projectName = $project['name'];
+$stmt->execute();
 
 
-    $stmt = $conn->prepare("DELETE FROM projects WHERE id = ?");
-    $stmt->bind_param("i", $id);
+header("Location:index.php?deleted=1");
 
-    if ($stmt->execute()) {
-
-        logActivity(
-            $_SESSION['user_id'],
-            "Deleted project: " . $projectName
-        );
-
-        $stmt->close();
-
-        header("Location: index.php?deleted=1");
-        exit();
-    } else {
-        die("Project delete failed.");
-    }
-}
+exit;

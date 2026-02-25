@@ -1,45 +1,41 @@
 <?php
-require_once dirname(__DIR__, 3) . "/middleware/admin.php";
-require_once dirname(__DIR__, 3) . "/config/database.php";
-require_once dirname(__DIR__, 3) . "/helpers/logger.php";
+
+require_once dirname(__DIR__,3)."/middleware/admin.php";
+
+require_once dirname(__DIR__,3)."/config/database.php";
+
+$db=new Database();
+$conn=$db->connect();
 
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+$name=$_POST['name'];
+$description=$_POST['description'];
+$status=$_POST['status'];
+$start=$_POST['start_date'];
+$end=$_POST['end_date'];
 
-$db = new Database();
-$conn = $db->connect();
+$user=$_SESSION['user_id'];
 
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = trim($_POST['name']);
-    $description = trim($_POST['description']);
-    $status = $_POST['status'];
-    $start = $_POST['start_date'];
-    $end = $_POST['end_date'];
-    $created_by = $_SESSION['user_id'];
+$stmt=$conn->prepare("
+INSERT INTO projects
+(name,description,status,start_date,end_date,created_by)
+VALUES (?,?,?,?,?,?)
+");
 
-    $stmt = $conn->prepare(
-        "INSERT INTO projects 
-        (name, description, status, start_date, end_date, created_by) 
-        VALUES (?, ?, ?, ?, ?, ?)"
-    );
+$stmt->bind_param(
+"sssssi",
+$name,
+$description,
+$status,
+$start,
+$end,
+$user
+);
 
-    $stmt->bind_param("sssssi", $name, $description, $status, $start, $end, $created_by);
+$stmt->execute();
 
-    if ($stmt->execute()) {
 
-        logActivity(
-            $_SESSION['user_id'],
-            "Created new project: " . $name
-        );
+header("Location:index.php?added=1");
 
-        $stmt->close();
-
-        header("Location: index.php?added=1");
-        exit();
-    } else {
-        die("Project insert failed.");
-    }
-}
+exit;

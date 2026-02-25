@@ -1,38 +1,32 @@
 <?php
-require_once dirname(__DIR__, 3) . "/middleware/admin.php";
-require_once dirname(__DIR__, 3) . "/config/database.php";
 
-$db = new Database();
-$conn = $db->connect();
+require_once dirname(__DIR__,3)."/middleware/admin.php";
 
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
+$id=$_POST['employee_id'];
 
-    $employee_id = intval($_POST['employee_id']);
-    $name = trim($_POST['name']);
-    $email = trim($_POST['email']);
-    $designation = trim($_POST['designation']);
-    $phone = trim($_POST['phone']);
-    $department = trim($_POST['department']);
+$data=[
+"name"=>$_POST['name'],
+"email"=>$_POST['email'],
+"designation"=>$_POST['designation'],
+"phone"=>$_POST['phone'],
+"department"=>$_POST['department']
+];
 
-    if (empty($name) || empty($email) || empty($designation) || empty($phone) || empty($department)) {
-        die("All fields are required.");
-    }
+$options=[
+'http'=>[
+'method'=>'PUT',
+'header'=>"Content-Type: application/json",
+'content'=>json_encode($data)
+]
+];
 
-    // Update users table
-    $stmt = $conn->prepare("UPDATE users 
-                            JOIN employees ON users.id = employees.user_id
-                            SET users.name = ?, users.email = ?
-                            WHERE employees.id = ?");
-    $stmt->bind_param("ssi", $name, $email, $employee_id);
-    $stmt->execute();
+$context=stream_context_create($options);
 
-    // Update employees table
-    $stmt2 = $conn->prepare("UPDATE employees 
-                             SET designation = ?, phone = ?, department = ?
-                             WHERE id = ?");
-    $stmt2->bind_param("sssi", $designation, $phone, $department, $employee_id);
-    $stmt2->execute();
+file_get_contents(
+"http://localhost/worknest-erp/src/api/employees.php?id=".$id,
+false,
+$context
+);
 
-    header("Location: index.php?updated=1");
-    exit();
-}
+header("Location:index.php");
+exit();
