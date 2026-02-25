@@ -5,12 +5,12 @@ require_once __DIR__."/../config/database.php";
 
 header("Content-Type: application/json");
 
-$db=new Database();
-$conn=$db->connect();
+$db = new Database();
+$conn = $db->connect();
 
-$method=$_SERVER['REQUEST_METHOD'];
+$method = $_SERVER['REQUEST_METHOD'];
 
-function respond($success,$message="",$data=null){
+function respond($success,$message="",$data=[]){
 
 echo json_encode([
 "success"=>$success,
@@ -18,16 +18,25 @@ echo json_encode([
 "data"=>$data
 ]);
 
-exit;
+exit();
 
 }
 
 
-switch($method){
+if($method=="GET"){
 
-case "GET":
 
-$result=$conn->query("
+if(session_status()===PHP_SESSION_NONE){
+session_start();
+}
+
+
+if(isset($_SESSION['user_role'])
+&& $_SESSION['user_role']=="user"){
+
+$userId=(int)$_SESSION['user_id'];
+
+$sql="
 
 SELECT tasks.*,
 projects.name AS project_name,
@@ -41,9 +50,38 @@ ON tasks.project_id=projects.id
 LEFT JOIN users
 ON tasks.assigned_to=users.id
 
-ORDER BY tasks.id ASC
+WHERE tasks.assigned_to=$userId
 
-");
+ORDER BY tasks.id DESC
+
+";
+
+}
+
+else{
+
+$sql="
+
+SELECT tasks.*,
+projects.name AS project_name,
+users.name AS user_name
+
+FROM tasks
+
+LEFT JOIN projects
+ON tasks.project_id=projects.id
+
+LEFT JOIN users
+ON tasks.assigned_to=users.id
+
+ORDER BY tasks.id DESC
+
+";
+
+}
+
+
+$result=$conn->query($sql);
 
 $data=[];
 
@@ -53,20 +91,32 @@ $data[]=$row;
 
 }
 
-respond(true,"Tasks fetched",$data);
+respond(true,"Tasks Loaded",$data);
 
-break;
+}
 
-case "POST":
+if($method=="POST"){
 
 $data=json_decode(file_get_contents("php://input"),true);
 
-$title=$data['title'];
-$description=$data['description'];
-$project=$data['project_id'];
-$user=$data['assigned_to'];
-$status=$data['status'];
-$due=$data['due_date'];
+
+$title=trim($data['title'] ?? "");
+$description=trim($data['description'] ?? "");
+$project=(int)($data['project_id'] ?? 0);
+$user=(int)($data['assigned_to'] ?? 0);
+$status=$data['status'] ?? "pending";
+$due=$data['due_date'] ?? null;
+
+
+/* VALIDATION */
+
+if($title==""){
+respond(false,"Title required");
+}
+
+if($description==""){
+respond(false,"Description required");
+}
 
 
 $stmt=$conn->prepare("
@@ -78,6 +128,7 @@ VALUES (?,?,?,?,?,?)
 
 ");
 
+
 $stmt->bind_param(
 "ssiiss",
 $title,
@@ -88,20 +139,61 @@ $status,
 $due
 );
 
+
 $stmt->execute();
 
-respond(true,"Task added");
+respond(true,"Task Added");
 
-break;
+}
 
 
-case "PUT":
+if($method=="PUT"){
 
 parse_str($_SERVER['QUERY_STRING'],$params);
 
-$id=$params['id'];
+$id=(int)($params['id'] ?? 0);
 
 $data=json_decode(file_get_contents("php://input"),true);
+
+
+/* USER STATUS UPDATE ONLY */
+
+if(isset($_SESSION['user_role'])
+&& $_SESSION['user_role']=="user"){
+
+$status=$data['status'] ?? "pending";
+
+$stmt=$conn->prepare("
+
+UPDATE tasks
+
+SET status=?
+
+WHERE id=?
+AND assigned_to=?
+
+");
+
+$stmt->bind_param(
+"sii",
+$status,
+$id,
+$_SESSION['user_id']
+);
+
+$stmt->execute();
+
+respond(true,"Status Updated");
+
+}
+
+$title=trim($data['title'] ?? "");
+$description=trim($data['description'] ?? "");
+$project=(int)($data['project_id'] ?? 0);
+$user=(int)($data['assigned_to'] ?? 0);
+$status=$data['status'] ?? "pending";
+$due=$data['due_date'] ?? null;
+
 
 $stmt=$conn->prepare("
 
@@ -118,28 +210,31 @@ WHERE id=?
 
 ");
 
+
 $stmt->bind_param(
 "ssiissi",
-$data['title'],
-$data['description'],
-$data['project_id'],
-$data['assigned_to'],
-$data['status'],
-$data['due_date'],
+$title,
+$description,
+$project,
+$user,
+$status,
+$due,
 $id
 );
 
+
 $stmt->execute();
 
-respond(true,"Task updated");
+respond(true,"Task Updated");
 
-break;
+}
 
-case "DELETE":
+if($method=="DELETE"){
 
 parse_str($_SERVER['QUERY_STRING'],$params);
 
-$id=$params['id'];
+$id=(int)($params['id'] ?? 0);
+
 
 $stmt=$conn->prepare("
 
@@ -152,8 +247,8 @@ $stmt->bind_param("i",$id);
 
 $stmt->execute();
 
-respond(true,"Task deleted");
-
-break;
+respond(true,"Task Deleted");
 
 }
+
+respond(false,"Invalid Request");

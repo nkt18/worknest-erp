@@ -60,12 +60,11 @@ data-bs-target="#addModal">
 
 <tr>
 
-<th>ID</th>
+<th>#</th>
 <th>Title</th>
 <th>Project</th>
 <th>User</th>
 <th>Status</th>
-
 <th width="150">Actions</th>
 
 </tr>
@@ -89,7 +88,6 @@ Loading tasks...
 </tbody>
 
 </table>
-
 
 
 <nav>
@@ -128,11 +126,13 @@ data-bs-dismiss="modal"></button>
 
 <input id="addTitle"
 class="form-control mb-2"
-placeholder="Title">
+placeholder="Title"
+required>
 
 <textarea id="addDescription"
 class="form-control mb-2"
-placeholder="Description"></textarea>
+placeholder="Description"
+required></textarea>
 
 
 <select id="addProject"
@@ -200,11 +200,12 @@ data-bs-dismiss="modal"></button>
 <input type="hidden" id="editId">
 
 <input id="editTitle"
-class="form-control mb-2">
-
+class="form-control mb-2"
+required>
 
 <textarea id="editDescription"
-class="form-control mb-2"></textarea>
+class="form-control mb-2"
+required></textarea>
 
 
 <select id="editProject"
@@ -301,12 +302,9 @@ let limit=5;
 let deleteId=null;
 
 
-/* LOAD */
 
 loadTasks();
-
 loadProjects();
-
 loadUsers();
 
 
@@ -319,7 +317,7 @@ fetch("/worknest-erp/src/api/tasks.php")
 
 .then(data=>{
 
-tasks=data.data;
+tasks=data.data || [];
 
 applyFilters();
 
@@ -328,8 +326,6 @@ applyFilters();
 }
 
 
-
-/* LOAD PROJECTS */
 
 function loadProjects(){
 
@@ -356,11 +352,9 @@ editProject.innerHTML=options;
 
 
 
-/* LOAD USERS */
-
 function loadUsers(){
 
-fetch("/worknest-erp/src/api/employees.php")
+fetch("/worknest-erp/src/api/users.php")
 
 .then(res=>res.json())
 
@@ -382,8 +376,6 @@ editUser.innerHTML=options;
 }
 
 
-
-/* FILTER */
 
 searchBox.addEventListener("keyup",applyFilters);
 statusFilter.addEventListener("change",applyFilters);
@@ -412,8 +404,6 @@ renderTable();
 
 
 
-/* TABLE */
-
 function renderTable(){
 
 let start=(page-1)*limit;
@@ -423,13 +413,13 @@ let end=start+limit;
 let rows="";
 
 
-filtered.slice(start,end).forEach(t=>{
+filtered.slice(start,end).forEach((t,index)=>{
 
 rows+=`
 
 <tr>
 
-<td>${t.id}</td>
+<td>${start+index+1}</td>
 
 <td>${t.title}</td>
 
@@ -437,7 +427,15 @@ rows+=`
 
 <td>${t.user_name}</td>
 
-<td>${t.status}</td>
+<td>
+
+<span class="badge bg-secondary">
+
+${t.status}
+
+</span>
+
+</td>
 
 <td>
 
@@ -492,8 +490,6 @@ renderPagination();
 
 
 
-/* PAGINATION */
-
 function renderPagination(){
 
 let totalPages=Math.ceil(filtered.length/limit);
@@ -541,6 +537,14 @@ renderTable();
 /* ADD */
 
 function addTask(){
+
+if(addTitle.value=="" || addDescription.value==""){
+
+showToast("Fill all fields",true);
+
+return;
+
+}
 
 fetch("/worknest-erp/src/api/tasks.php",{
 
@@ -593,13 +597,14 @@ editTitle.value=t.title;
 
 editDescription.value=t.description;
 
+setTimeout(()=>{
+
 editProject.value=t.project_id;
-
 editUser.value=t.assigned_to;
-
 editStatus.value=t.status;
-
 editDue.value=t.due_date;
+
+},200);
 
 new bootstrap.Modal(editModal).show();
 
@@ -636,7 +641,7 @@ due_date:editDue.value
 
 if(data.success){
 
-showToast("Updated");
+showToast("Task Updated");
 
 loadTasks();
 
@@ -659,6 +664,7 @@ deleteId=id;
 new bootstrap.Modal(deleteModal).show();
 
 }
+
 
 
 function deleteTask(){
@@ -688,8 +694,6 @@ bootstrap.Modal.getInstance(deleteModal).hide();
 }
 
 
-
-/* TOAST */
 
 function showToast(msg,error=false){
 
