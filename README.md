@@ -366,13 +366,13 @@ worknest-erp
 Project deployed on InfinityFree:
 
 
-https://worknest-erp.page.gd
+https://worknest-erp.gt.tc
 
 
 Login Page:
 
 
-https://worknest-erp.page.gd/src/auth/login.php
+https://worknest-erp.gt.tc/src/auth/login.php
 
 
 ---
